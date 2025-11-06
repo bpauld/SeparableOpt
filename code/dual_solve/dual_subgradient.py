@@ -1,7 +1,6 @@
 import numpy as np
 
 
-#daslkasjdf
 def solve_dual_gd(prob, eta="1/k", max_iter=1000, solve_contracted_problem=False, verbose=True):
 
     lambda_k = np.zeros(prob.m)

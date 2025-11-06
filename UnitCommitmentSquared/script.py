@@ -5,8 +5,9 @@ os.environ['SCIPY_USE_PROPACK'] = '1'
 
 import numpy as np
 import sys
-sys.path.insert(1, '../')
-sys.path.insert(1, '../code/')
+#sys.path.insert(1, '../')
+#sys.path.insert(1, '../code')
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..', 'code'))
 
 from frank_wolfe_1 import *
 from frank_wolfe_1_strongly_convex import *

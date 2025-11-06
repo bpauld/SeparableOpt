@@ -13,7 +13,9 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..', 'code'))
 
 from frank_wolfe_1 import *
 from approximate_caratheodory import sparsify_solution_approximate_caratheodory_fcfw, compute_f_values, build_final_solution_approximate_caratheodory, sparsify_solution_approximate_caratheodory_mnp
+from caratheodory.mnp import CaratheodoryMNPSolve
 
+from caratheodory.mnp import CaratheodoryMNPSolve
 import scipy as sp
 import os
 from utils import create_pevs_problem
@@ -27,8 +29,15 @@ def run_exp_fixed_K(prob, K, opt_dual_value):
     x_start = prob.get_feasible_point()
     z_K, grad_norm_list, y_dic, = frank_wolfe_1(opt_dual_value, prob.P_max_bar, K, prob, x_start, verbose=True, keep_stepsizes=False)
     T = 10 * pev_prob.n # this should be enough
-    z_t, active_set, opt_lambda = sparsify_solution_approximate_caratheodory_mnp(z_K, T, y_dic, pev_prob, f_values=None)
-    y_final_mnp, y_final_mnp_max = build_final_solution_approximate_caratheodory(y_dic, opt_lambda, active_set)
+
+
+    #z_t, active_set, opt_lambda = sparsify_solution_approximate_caratheodory_mnp(z_K, T, y_dic, pev_prob, f_values=None)
+    #y_final_mnp, y_final_mnp_max = build_final_solution_approximate_caratheodory(y_dic, opt_lambda, active_set)
+    for i in range(prob.n):
+        y_dic[i] = y_dic[i][0]
+    carathodory_mnp_solver = CaratheodoryMNPSolve(y_dic=y_dic, verbose=True)
+    y_final_mnp_max, _ = carathodory_mnp_solver.solve(z_K, T)
+
     return y_final_mnp_max
 
 
@@ -36,24 +45,8 @@ def run_exp(prob, K_range=[50, 100, 200, 500, 1000, 5000, 10000], max_iter_gd=10
     scores = np.zeros((3, len(K_range) + 1))
 
     #Get optimal dual value of perturbed problem
-    opt_dual_value = solve_dual_gd(prob, eta="1/k", max_iter=max_iter_gd, solve_contracted_problem=True, verbose=False)
+    opt_dual_value = solve_dual_gd(prob, eta="1/k", max_iter=max_iter_gd, solve_contracted_problem=True, verbose=True)
     print(f"Opt dual value = {opt_dual_value}")
-
-    #Solve using udell method, slightly increase the optimal dual value to ensure that the resulting LP is not infeasible due to numerical errors
-    found_solution = -1
-    perturbation = 1
-    alpha = 0.001
-    while found_solution==-1:
-        u, found_solution = solve_randomized(perturbation*opt_dual_value, prob, solve_contracted=True)
-        perturbation += alpha
-    #get primal feasible solution
-    u_final = build_final_solution_randomized(u, prob)
-    infeasibility_udell = np.linalg.norm(np.clip(prob.compute_A_dot_x(u_final) - prob.b, 0, None))
-    infeasibility_udell_bar = np.linalg.norm(np.clip(prob.compute_A_dot_x(u_final) - prob.b_bar, 0, None))
-    fval_udell = prob.f(u_final, check_feasibility=True, check_integer_constraint=True)
-    scores[0, -1] = fval_udell
-    scores[1, -1] = infeasibility_udell
-    scores[2, -1] = infeasibility_udell_bar
 
     #now run our method for different values of K
     for index_K, K in enumerate(K_range):
@@ -83,8 +76,6 @@ if __name__ == "__main__":
         final_scores[random_seed, :, :] = scores
 
     print(final_scores)
-    filename=f"results/pev_n_{n}_N_{N}_Krange_{len(K_range)}_nb_experiments_{nb_experiments}.npy"
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    np.save(filename, final_scores)
+    
 
 
