@@ -1,5 +1,5 @@
 import numpy as np
-from convex_hull_optimization import optimize_over_convex_hull
+from code.caratheodory.convex_hull_optimization import optimize_over_convex_hull
 import scipy as sp
 import time
 from scipy.sparse import coo_matrix

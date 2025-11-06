@@ -1,33 +1,24 @@
 import numpy as np
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from separable_opt_problem import SeparableOptProblem
 
 class BlockCoordinateFrankWolfe:
     
-    def __init__(self, h_list, 
-                 A_list, b,
-                 oracle_list,
-                 d_star):
+    def __init__(self, separable_opt_problem:SeparableOptProblem, d_star):
         """
         Args:
             oracles: list of functions, each oracle_i(g) returns argmin_{x in D_i} <g, x>
         """
-        self.h_list = h_list
-        self.A_list = A_list
-        self.b = b
-        self.oracle_list = oracle_list
-        self.n_components = len(h_list)
+        self.problem = separable_opt_problem
+        self.h_list = separable_opt_problem.h_list
+        self.A_list = separable_opt_problem.A_list
+        self.b = separable_opt_problem.b
+        self.oracle_list = separable_opt_problem.oracle_list
+        self.n_components = separable_opt_problem.n
         self.d_star = d_star
     
-    def compute_primal(self, X):
-        res = 0
-        for i in range(self.n_components):
-            res += self.h_list[i](X[:, i])
-        return res/self.n_components
-    
-    def compute_infeasibility(self, X):
-        infeasibility = -self.b
-        for i in range(self.n_components):
-            infeasibility += 1/self.n_components * self.A_list[i] @ X[:, i]
-        return infeasibility
     
     def optimize(self, X_0, max_iter=100, freq_compute_cost=1000, stepsize_strategy="fixed"):
         
@@ -44,8 +35,8 @@ class BlockCoordinateFrankWolfe:
         }
         nb_oracle_calls = 0
         
-        cost_k = self.compute_primal(X_k) 
-        infeasibility_k = self.compute_infeasibility(X_k)
+        cost_k = self.problem.h(X_k) 
+        infeasibility_k = self.problem.compute_infeasibility(X_k)
 
         for k in range(max_iter):
 

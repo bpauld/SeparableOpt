@@ -1,38 +1,23 @@
 
 import numpy as np
+import sys
+import os
+
+# Add parent directory to path to import SeparableOptProblem
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from separable_opt_problem import SeparableOptProblem
 
 class StochasticDualSubgradient:
     
-    def __init__(self, h_list, 
-                 A_list, b,
-                 oracle_list):
+    def __init__(self, separable_opt_problem: SeparableOptProblem):
         """
         Args:
-            oracle_list: list of oracles, each oracle_i(gamma, g) returns argmin_{x in X_i} gamma * h_i(x) + g^T A_i x
+            separable_opt_problem: SeparableOptProblem instance containing h_list, A_list, b, and oracle_list
         """
-        self.h_list = h_list
-        self.A_list = A_list
-        self.b = b
-        self.oracle_list = oracle_list
-        self.n_components = len(h_list)
-    
-    def compute_dual(self, lbd):
-        dual_value = - lbd.dot(self.b)
-        for i in range(self.n_components):
-            dual_value += 1/self.n_components * self.oracle_list[i](1, lbd)[1]
-        return dual_value
-    
-    def compute_primal(self, X):
-        res = 0
-        for i in range(self.n_components):
-            res += self.h_list[i](X[:, i])
-        return res/self.n_components
-    
-    def compute_infeasibility(self, X):
-        infeasibility = -self.b
-        for i in range(self.n_components):
-            infeasibility += 1/self.n_components * self.A_list[i] @ X[:, i]
-        return infeasibility
+        self.problem = separable_opt_problem
+        self.n_components = separable_opt_problem.n
+        self.b = separable_opt_problem.b
+        self.A_list = separable_opt_problem.A_list
     
     def optimize(self, lbd_0, max_iter=100, freq_compute_dual=1000, alpha_bar=1):
         
@@ -52,7 +37,7 @@ class StochasticDualSubgradient:
         X = np.zeros((self.A_list[0].shape[1], self.n_components))
         for i in range(self.n_components):
             #initialize with a feasible primal point
-            X[:, i] = self.oracle_list[i](1, lbd)[0]
+            X[:, i] = self.problem.oracle(i, 1, lbd)[0]
         index_counters = np.zeros(self.n_components)
         
         for k in range(max_iter):
@@ -60,7 +45,7 @@ class StochasticDualSubgradient:
             #pick index at random
             ik = np.random.randint(self.n_components)
 
-            x_ik = self.oracle_list[ik](1, lbd)[0]
+            x_ik = self.problem.oracle(ik, 1, lbd)[0]
             nb_oracle_calls += 1
             X[:, ik] = (1/(index_counters[ik] + 1)) * (index_counters[ik] * X[:, ik] + x_ik)
             index_counters[ik] += 1
@@ -74,10 +59,10 @@ class StochasticDualSubgradient:
 
             if k%freq_compute_dual == 0:
                 history["iteration"].append(k)
-                history['dual_value'].append(self.compute_dual(lbd_avg))
+                history['dual_value'].append(self.problem.compute_dual(lbd_avg))
                 history['nb_oracle_calls'].append(nb_oracle_calls)
-                primal_cost = self.compute_primal(X)
-                infeasibility = np.linalg.norm(self.compute_infeasibility(X))
+                primal_cost = self.problem.h(X)
+                infeasibility = np.linalg.norm(self.problem.compute_infeasibility(X))
                 history['primal_value'].append(primal_cost)
                 history['infeasibility'].append(infeasibility)
                 print(f"At iteration {k}, dual value = {history['dual_value'][-1]}")
