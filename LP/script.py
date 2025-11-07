@@ -7,7 +7,7 @@ import os
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..', 'code'))
 from scipy.optimize import linprog
 from two_stage_solver import TwoStageStochasticDualSubgradientBlockFrankWolfe
-from separable_opt_problem import SeparableOptProblem
+from lp_problem import LPProblem
 import pulp
 import random_polytope as rp
 from highs_solver import HIGHSSolver
@@ -63,9 +63,9 @@ def test_function(seed=None):
         rand_xi = 0.5 * polytope_list[i].vertices[0] + 0.5 * polytope_list[i].vertices[1]
         b += 1/n * A_list[i] @ rand_xi
         
-    lp_problem = SeparableOptProblem(n=n, h_list=h_list, A_list=A_list, b=b, oracle_list=oracle_list)
+    lp_problem = LPProblem(n=n, c_list=c_list, A_list=A_list, b=b, oracle_list=oracle_list)
 
-    two_stage_solver = TwoStageStochasticDualSubgradientBlockFrankWolfe(separable_opt_problem=lp_problem)
+    two_stage_solver = TwoStageStochasticDualSubgradientBlockFrankWolfe(problem=lp_problem)
     G = get_approximate_dual_lipschitz_constant(A_list, b, polytope_list)
     print(f"Approximate value of G = {G}")
 
@@ -78,7 +78,7 @@ def test_function(seed=None):
     alpha_bar_stoch = n / G
     lbd_0 = np.random.randn(m)
     start_time_2_stage = time.time()
-    history_stoch_dual_sub, history_block_FW = two_stage_solver.optimize(lbd_0=lbd_0,
+    history_stoch_dual_sub, history_block_FW, X_sol = two_stage_solver.optimize(lbd_0=lbd_0,
                                                                         max_iter_stochastic_dual_subgradient=max_iter_stoch_dual_subgradient,
                                                                         alpha_bar=alpha_bar_stoch,
                                                                         max_iter_block_FW=max_iter_block_FW, 
@@ -86,6 +86,10 @@ def test_function(seed=None):
                                                                         freq_compute_primal_cost=freq_compute_dual_stoch,
                                                                         stepsize_strategy_block_fw='linesearch')
 
+    total_time_2_stage = time.time() - start_time_2_stage
+    opt_primal_value_2_stage = lp_problem.h(X_sol)
+    infeasibility_2_stage = np.linalg.norm(lp_problem.compute_infeasibility(X_sol))
+    print(f"Optimal value found using 2-stage algorithm = {opt_primal_value_2_stage} with infeasibility = {infeasibility_2_stage:.4e} in {total_time_2_stage:.4f} seconds")
 
     """
 

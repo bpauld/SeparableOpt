@@ -18,7 +18,7 @@ class SeparableOptProblem(ABC):
     - Other abstract methods as needed
     """
 
-    def __init__(self, n, h_list, A_list, b, oracle_list):
+    def __init__(self, n, h_list, A_list, b, is_convex=True):
         """
         Initialize the separable optimization problem.
 
@@ -34,8 +34,9 @@ class SeparableOptProblem(ABC):
         self.n = n
         self.A_list = A_list
         self.h_list = h_list
-        self.oracle_list = oracle_list
+        #self.oracle_list = oracle_list
         self.b = b
+        self.is_convex = is_convex
 
         # Validate that A_list has n elements
         if len(A_list) != n:
@@ -87,6 +88,7 @@ class SeparableOptProblem(ABC):
                 result += self.h_list[i](x[:, i])
         return 1/self.n * result
 
+    @abstractmethod
     def oracle(self, i, gamma, g):
         """
         Oracle for the i-th block:
@@ -107,7 +109,7 @@ class SeparableOptProblem(ABC):
         ndarray
             Minimizer x_i^* in X_i
         """
-        return self.oracle_list[i](gamma, g)
+        pass
     
     def compute_dual(self, lbd):
         """
@@ -272,3 +274,87 @@ class SeparableOptProblem(ABC):
             return y_k[i]
         else:
             return y_k[:, i]
+
+
+class ConvexSeparableOptProblem(SeparableOptProblem):
+    """
+    Convex separable optimization problem where each h_i is convex.
+
+    The problem has the form:
+        min  1/n * sum_{i=1}^n h_i(x_i)
+        s.t. 1/n * sum_{i=1}^n A_i x_i = b
+             x_i in X_i for all i
+
+    where each h_i is convex.
+    """
+
+    def __init__(self, n, h_list, A_list, b):
+        """
+        Initialize the convex separable optimization problem.
+
+        Parameters
+        ----------
+        n : int
+            Number of blocks in the separable problem
+        h_list : list of callables
+            List of objective functions [h_1, ..., h_n]
+        A_list : list of ndarray
+            List of constraint matrices [A_1, ..., A_n]
+        b : ndarray
+            Right-hand side of the constraint
+        """
+        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b, is_convex=True)
+
+
+class NonConvexSeparableOptProblem(SeparableOptProblem):
+    """
+    Nonconvex separable optimization problem where h_i and X_i may be nonconvex.
+
+    The problem has the form:
+        min  1/n * sum_{i=1}^n h_i(x_i)
+        s.t. 1/n * sum_{i=1}^n A_i x_i = b
+             x_i in X_i for all i
+
+    where h_i and X_i can be nonconvex.
+    """
+
+    def __init__(self, n, h_list, A_list, b):
+        """
+        Initialize the nonconvex separable optimization problem.
+
+        Parameters
+        ----------
+        n : int
+            Number of blocks in the separable problem
+        h_list : list of callables
+            List of objective functions [h_1, ..., h_n]
+        A_list : list of ndarray
+            List of constraint matrices [A_1, ..., A_n]
+        b : ndarray
+            Right-hand side of the constraint
+        """
+        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b, is_convex=False)
+
+    @abstractmethod
+    def build_final_solution_from_caratheodory_output(self, caratheodory_output):
+        """
+        Build the final solution from Caratheodory output.
+
+        This method is used to construct a final solution after applying
+        Caratheodory's theorem to sparsify the solution.
+
+        Parameters
+        ----------
+        y_dic : dict
+            Dictionary containing the points from the Frank-Wolfe algorithm
+        eta_vector : ndarray
+            Coefficients from Caratheodory
+        corresponding_indices : ndarray or list
+            Indices corresponding to the selected points
+
+        Returns
+        -------
+        ndarray or dict
+            Final solution constructed from the output
+        """
+        pass

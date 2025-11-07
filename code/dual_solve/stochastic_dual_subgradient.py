@@ -9,15 +9,15 @@ from separable_opt_problem import SeparableOptProblem
 
 class StochasticDualSubgradient:
     
-    def __init__(self, separable_opt_problem: SeparableOptProblem):
+    def __init__(self, problem: SeparableOptProblem):
         """
         Args:
-            separable_opt_problem: SeparableOptProblem instance containing h_list, A_list, b, and oracle_list
+            problem: SeparableOptProblem instance containing h_list, A_list, b
         """
-        self.problem = separable_opt_problem
-        self.n_components = separable_opt_problem.n
-        self.b = separable_opt_problem.b
-        self.A_list = separable_opt_problem.A_list
+        self.problem = problem
+        self.n_components = problem.n
+        self.b = problem.b
+        #self.A_list = separable_opt_problem.A_list
     
     def optimize(self, lbd_0, max_iter=100, freq_compute_dual=1000, alpha_bar=1):
         
@@ -34,7 +34,7 @@ class StochasticDualSubgradient:
         nb_oracle_calls = 0
 
         #create matrix of primal candidates (this is only if we want to keep track of the primal solution, or to help initialize the block Frank Wolfe algorithm)
-        X = np.zeros((self.A_list[0].shape[1], self.n_components))
+        X = np.zeros((self.problem.A_list[0].shape[1], self.n_components))
         for i in range(self.n_components):
             #initialize with a feasible primal point
             X[:, i] = self.problem.oracle(i, 1, lbd)[0]
@@ -50,7 +50,7 @@ class StochasticDualSubgradient:
             X[:, ik] = (1/(index_counters[ik] + 1)) * (index_counters[ik] * X[:, ik] + x_ik)
             index_counters[ik] += 1
 
-            gk = self.A_list[ik] @ x_ik / self.n_components - self.b/self.n_components
+            gk = self.problem.compute_Ai_dot_x(ik, x_ik) / self.n_components - self.b/self.n_components
             alpha_k = alpha_bar/np.sqrt(k+1)
             lbd += alpha_k * gk
             #print(lbd, type(lbd_avg))

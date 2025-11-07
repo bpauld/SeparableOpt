@@ -5,8 +5,8 @@ import scipy as sp
 class CaratheodoryOutput:
     def __init__(self, y_dic:dict[int, list[np.ndarray]]):
         for i, pair in y_dic.items():
-            if len(pair) != 2:
-                raise ValueError(f"For key '{i}', pair does not have length 2")
+            if len(pair) != 3:
+                raise ValueError(f"For key '{i}', pair does not have length 3")
             if not isinstance(pair[0], np.ndarray):
                 raise ValueError(f"For key '{i}', the first elememt is not a numpy array")
             if not isinstance(pair[1], np.ndarray):
@@ -251,11 +251,12 @@ class CaratheodoryMNPSolve():
         for i in range(self.n):
             matching_indices = [(index, j, k) for index, (j, k) in enumerate(active_set) if i == j]
             sum_lambda = sum([opt_lambda[int(index)] for (index, j, k) in matching_indices])
-            y_dic_final[i] = [np.zeros((self.m, len(matching_indices))), np.zeros(len(matching_indices))]
+            y_dic_final[i] = [np.zeros((self.m, len(matching_indices))), np.zeros(len(matching_indices)), np.zeros(len(matching_indices))]
 
             for l, (index, j, k) in enumerate(matching_indices):
                 y_dic_final[i][0][:, l] = self.y_dic_integer_indexed[int(j)][:, int(k)]
                 y_dic_final[i][1][l] = opt_lambda[index]/sum_lambda
+                y_dic_final[i][2][l] = int(k)
         
         #now convert to the original indexing of the dictionary
         y_dic_final = self.convert_dict_to_original_indexing(y_dic_final)
@@ -264,22 +265,32 @@ class CaratheodoryMNPSolve():
 
 class MetaCaratheodoryMNPSolve():
     def __init__(self,
+                 x_dic,
                  y_dic,
                  weights_dic,
                  verbose:bool = True):
+        
+        self.x_dic = x_dic
         self.y_dic = y_dic
         self.weights_dic = weights_dic
-        self.y_dic_integer_indexed = self.compute_integer_indexed_y_dic()
+
+        #remove duplicate columns from y_dic and aggregate weights accordingly
+        self.remove_duplicate_columns_from_dictionaries()
+
+        #convert to integer-indexed dictionaries for easier handling
+        self.y_dic_integer_indexed = self.compute_integer_indexed_dic(self.y_dic)
+        self.x_dic_integer_indexed = self.compute_integer_indexed_dic(self.x_dic)
         self.weights_dic_integer_indexed = self.compute_integer_indexed_weights_dic()
-        self.conversion_dict = self.compute_conversion_dict() #to help 
+        self.conversion_dict = self.compute_conversion_dict(self.y_dic) #to help 
+
         self.m = self.y_dic_integer_indexed[0].shape[0]  # Assuming all y_dic[i] have the same shape
         self.n = len(y_dic)
         self.verbose = verbose
 
 
-    def compute_integer_indexed_y_dic(self):
+    def compute_integer_indexed_dic(self, dic):
         new_y_dic = {}
-        for i, (key, pair) in enumerate(self.y_dic.items()):
+        for i, (key, pair) in enumerate(dic.items()):
             new_y_dic[i] = pair
         return new_y_dic
     
@@ -289,9 +300,9 @@ class MetaCaratheodoryMNPSolve():
             new_weights_dic[i] = pair
         return new_weights_dic
 
-    def compute_conversion_dict(self):
+    def compute_conversion_dict(self, dic):
         conversion_dict = {}
-        for i, original_indexed in enumerate(self.y_dic):
+        for i, original_indexed in enumerate(dic):
             conversion_dict[i] = original_indexed
         return conversion_dict
     
@@ -301,10 +312,37 @@ class MetaCaratheodoryMNPSolve():
         for i, (key, pair) in enumerate(dic.items()):
             new_dic[self.conversion_dict[key]] = pair
         return new_dic
+    
+    def remove_duplicate_columns_from_dictionaries(self):
+        for key in self.y_dic:
+            # Find unique columns in y_dic[key]
+            unique_columns, inverse_indices = np.unique(self.y_dic[key], axis=1, return_inverse=True)
+
+            # Aggregate weights for duplicate columns
+            k_unique = unique_columns.shape[1]
+            weights_aggregated = np.zeros(k_unique)
+
+            # Also collect corresponding unique columns from x_dic
+            x_unique = np.zeros((self.x_dic[key].shape[0], k_unique))
+
+            for i in range(k_unique):
+                # Find all original columns that map to this unique column
+                mask = (inverse_indices == i)
+                weights_aggregated[i] = np.sum(self.weights_dic[key][mask])
+
+                # Take the first occurrence of x_dic column corresponding to this unique y_dic column
+                # (all duplicates should have the same x_dic column since y_dic columns are duplicates)
+                first_index = np.where(mask)[0][0]
+                x_unique[:, i] = self.x_dic[key][:, first_index]
+
+            # Update both y_dic and x_dic with unique columns
+            self.y_dic[key] = unique_columns
+            self.x_dic[key] = x_unique
+            self.weights_dic[key] = weights_aggregated
+            assert np.isclose(np.sum(self.weights_dic[key]), 1.0)
+
 
     def solve(self, z, T, nb_indices_considered, Z1=1e-12, Z2=1e-10, Z3=1e-10):
-
-
         nb_trivial_convex_combinations = 0
         nb_caratheodory_calls = 0
         final_y_dic = {}
@@ -321,11 +359,6 @@ class MetaCaratheodoryMNPSolve():
 
         stop_condition = False
         while not stop_condition:
-            
-            #if end_index < self.n - np.floor(self.n/R):
-            #    end_index = self.n #for the last block we just take everything that is left
-
-
             z_star = z_tilde.copy()
             for i in range(start_index, self.n):
                 z_star -=  self.y_dic_integer_indexed[i] @ self.weights_dic_integer_indexed[i]
@@ -341,7 +374,8 @@ class MetaCaratheodoryMNPSolve():
                 if small_y_dic_output[key][1].shape[0] == 1:
                     #here we have found a trivial convex combination, so we remove the corresponding element from z_tilde
                     z_tilde -= small_y_dic_output[key][0][:, 0]
-                    final_y_dic[key] = small_y_dic_output[key][0][:, 0]
+                    #final_y_dic[key] = small_y_dic_output[key][0][:, 0]
+                    final_y_dic[key] = small_y_dic_output[key]
                     keys_to_remove.append(key)
                     nb_trivial_convex_combinations += 1
             for key in keys_to_remove:
@@ -363,19 +397,36 @@ class MetaCaratheodoryMNPSolve():
         
         #build the final dictionary in the required format
         #start with the keys already there, i.e. the ones corresponding to trivial convex combinations
+        """
         for key in final_y_dic:
             trivial_cvx_vector = final_y_dic[key].copy()
             final_y_dic[key] = []
             final_y_dic[key].append(np.zeros((self.m, 1)))
             final_y_dic[key][0][:, 0] = trivial_cvx_vector
             final_y_dic[key].append(np.ones(1))
+        """
         #now add the missing keys, i.e. the ones corresponding to non trivial convex combinations
         for key in small_y_dic:
             assert key not in final_y_dic
             final_y_dic[key] = []
             final_y_dic[key].append(small_y_dic_output[key][0])
             final_y_dic[key].append(small_y_dic_output[key][1])
+            final_y_dic[key].append(small_y_dic_output[key][2])
 
         
-        final_y_dic = self.convert_dict_to_original_indexing(final_y_dic)
-        return CaratheodoryOutput(y_dic=final_y_dic)
+        
+        final_x_dic = {}
+        for key in final_y_dic:
+            final_x_dic[key] = []
+            final_x_dic[key].append(np.zeros((self.x_dic[key].shape[0], final_y_dic[key][0].shape[1])))
+            for j in range(final_y_dic[key][0].shape[1]):
+                index_in_original_y_dic = int(final_y_dic[key][2][j])
+                assert np.abs(index_in_original_y_dic - final_y_dic[key][2][j]) < 1e-6
+                final_x_dic[key][0][:, j] = self.x_dic[key][:, index_in_original_y_dic]
+            final_x_dic[key].append(final_y_dic[key][1])
+            final_x_dic[key].append(final_y_dic[key][2])
+        
+
+        #final_y_dic = self.convert_dict_to_original_indexing(final_y_dic)
+        final_x_dic = self.convert_dict_to_original_indexing(final_x_dic)
+        return CaratheodoryOutput(y_dic=final_x_dic)

@@ -6,17 +6,16 @@ from separable_opt_problem import SeparableOptProblem
 
 class BlockCoordinateFrankWolfe:
     
-    def __init__(self, separable_opt_problem:SeparableOptProblem, d_star):
+    def __init__(self, problem:SeparableOptProblem, d_star):
         """
         Args:
             oracles: list of functions, each oracle_i(g) returns argmin_{x in D_i} <g, x>
         """
-        self.problem = separable_opt_problem
-        self.h_list = separable_opt_problem.h_list
-        self.A_list = separable_opt_problem.A_list
-        self.b = separable_opt_problem.b
-        self.oracle_list = separable_opt_problem.oracle_list
-        self.n_components = separable_opt_problem.n
+        self.problem = problem
+        self.h_list = problem.h_list
+        self.b = problem.b
+        self.oracle_list = problem.oracle_list
+        self.n_components = problem.n
         self.d_star = d_star
     
     
@@ -35,19 +34,35 @@ class BlockCoordinateFrankWolfe:
         }
         nb_oracle_calls = 0
         
-        cost_k = self.problem.h(X_k) 
-        infeasibility_k = self.problem.compute_infeasibility(X_k)
+        beta_k_list = np.zeros(self.n_components)
+        z_k_list = np.zeros((self.b.shape[0], self.n_components))
+        for i in range(self.n_components):
+            beta_k_list[i] = 1/self.n_components * self.problem.h_i(i, X_k[:, i])
+            z_k_list[:, i] = 1/self.n_components * self.problem.compute_Ai_dot_x(i, X_k[:, i])
+        beta_k = np.sum(beta_k_list)
+        z_k = np.sum(z_k_list, axis=1)
+
+        beta_z_dic = {}
+        x_dic = {}
+        weights_dic = {}
+        if not self.problem.is_convex:
+            for i in range(self.n_components):
+                beta_z_dic[i] = [np.concatenate((np.array([beta_k_list[i]]), z_k_list[:, i]))]
+                x_dic[i] = [X_k[:, i].copy()]
+                weights_dic[i] = [1.0]
+                #TODO: should also add check that X_0[:, i] is in the domain of h_i
 
         for k in range(max_iter):
 
             #compute gradient
-            gamma_k = max(cost_k - self.d_star, 0)
-            v_k = infeasibility_k
+            gamma_k = max(beta_k - self.d_star, 0)
+            #v_k = infeasibility_k
+            v_k = z_k - self.b
 
             #pick index at random
             ik = np.random.randint(self.n_components)
 
-            s_ik = self.oracle_list[ik](gamma_k, v_k)[0]
+            s_ik = self.problem.oracle(ik, gamma_k, v_k)[0]
             nb_oracle_calls += 1
             #update cost and infeasibility
             d_ik = s_ik - X_k[:, ik]
@@ -59,31 +74,45 @@ class BlockCoordinateFrankWolfe:
                     #does not matter
                     rho_k = 1
                 else:
-                    #numerator = gamma_k * 1/self.n_components * self.c_list[ik]@(-d_ik) + v_k.dot(1/self.n_components * self.A_list[ik] @ (-d_ik))
-                    numerator = gamma_k * 1/self.n_components * (self.h_list[ik](X_k[:, ik]) - self.h_list[ik](s_ik)) + v_k.dot(1/self.n_components * self.A_list[ik] @ (-d_ik))
-                    #denominator = (1/self.n_components * self.c_list[ik]@(-d_ik))**2 + np.linalg.norm(1/self.n_components * self.A_list[ik] @ (-d_ik))**2
-                    denominator = (1/self.n_components * (self.h_list[ik](X_k[:, ik]) - self.h_list[ik](s_ik)))**2 + np.linalg.norm(1/self.n_components * self.A_list[ik] @ (-d_ik))**2
+                    numerator = gamma_k * 1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - self.problem.h_i(ik, s_ik)) + v_k.dot(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))
+                    denominator = (1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - self.problem.h_i(ik, s_ik)))**2 + np.linalg.norm(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))**2
                     rho_k = numerator / denominator
                     if np.abs(rho_k) < 1e-6:
                         rho_k = 0
                     rho_k = min(rho_k, 1)
-                    #print(rho_k)
                     assert rho_k >= 0
 
-            #update cost and infeasibility
-            cost_k += rho_k / self.n_components * (self.h_list[ik](s_ik) - self.h_list[ik](X_k[:, ik]))
-            infeasibility_k += rho_k / self.n_components * self.A_list[ik] @ d_ik
+            #update beta_k and z_k
+            beta_k += rho_k * (1/self.n_components * self.problem.h_i(ik, s_ik) - beta_k_list[ik])
+            beta_k_list[ik] = (1 - rho_k) * beta_k_list[ik] + rho_k * 1/self.n_components * self.problem.h_i(ik, s_ik)
+            z_k += rho_k  * ( 1/ self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik) - z_k_list[:, ik])
+            z_k_list[:, ik] = (1 - rho_k) * z_k_list[:, ik] + rho_k * 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik)
 
             #update iterate
             X_k[:, ik] = (1-rho_k) * X_k[:, ik] + rho_k * s_ik
+
+            if not self.problem.is_convex:
+                beta_z_dic[ik].append(np.concatenate((np.array([1/self.n_components * self.problem.h_i(ik, s_ik)]), 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik))))
+                x_dic[ik].append(s_ik.copy())
+                weights_dic[ik] = ((1-rho_k) * np.array(weights_dic[ik])).tolist()
+                weights_dic[ik].append(rho_k)
             
 
             if k%freq_compute_cost == 0 or k== max_iter-1:
                 history["iteration"].append(k)
                 history['nb_oracle_calls'].append(nb_oracle_calls)
-                history['infeasibility'].append(np.linalg.norm(infeasibility_k))
-                history['primal_value'].append(cost_k)
-                history['fw_objective_value'].append(0.5 * gamma_k**2 + 0.5 * infeasibility_k.dot(infeasibility_k))
-                print(f"At iteration {k}, primal value = {cost_k}, infeasibility = {np.linalg.norm(infeasibility_k)}")
+                history['infeasibility'].append(np.linalg.norm(z_k - self.b))
+                history['primal_value'].append(beta_k)
+                history['fw_objective_value'].append(0.5 * gamma_k**2 + 0.5 * v_k.dot(v_k))
+                print(f"At iteration {k}, primal value = {beta_k}, infeasibility = {np.linalg.norm(z_k - self.b)}")
         
-        return history, X_k
+        #put y_dic and weights as arrays
+        if not self.problem.is_convex:
+            for i in range(self.n_components):
+                beta_z_dic[i] = np.array(beta_z_dic[i]).T
+                x_dic[i] = np.array(x_dic[i]).T
+                weights_dic[i] = np.array(weights_dic[i])
+
+        #output is concatenation of cost_k and infeasibility_k
+        w_K = np.concatenate((np.array([beta_k]), z_k))
+        return history, X_k, w_K, beta_z_dic, x_dic, weights_dic

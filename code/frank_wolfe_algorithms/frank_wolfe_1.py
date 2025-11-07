@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from convex_hull_optimization import optimize_over_convex_hull
+from code.caratheodory.convex_hull_optimization import optimize_over_convex_hull
 
 def clean_dictionary(y_dic):
     new_dic = {}
