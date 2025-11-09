@@ -5,7 +5,6 @@ import sys
 import os
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..', 'code'))
-from scipy.optimize import linprog
 from two_stage_solver import TwoStageStochasticDualSubgradientBlockFrankWolfe
 from lp_problem import LPProblem
 import pulp

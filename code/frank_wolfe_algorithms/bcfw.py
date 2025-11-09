@@ -14,7 +14,7 @@ class BlockCoordinateFrankWolfe:
         self.problem = problem
         self.h_list = problem.h_list
         self.b = problem.b
-        self.oracle_list = problem.oracle_list
+        #self.oracle_list = problem.oracle_list
         self.n_components = problem.n
         self.d_star = d_star
     
@@ -67,6 +67,9 @@ class BlockCoordinateFrankWolfe:
             #update cost and infeasibility
             d_ik = s_ik - X_k[:, ik]
 
+            h_ik_sik = self.problem.h_i(ik, s_ik)
+            Aik_sik = self.problem.compute_Ai_dot_x(ik, s_ik)
+
             if stepsize_strategy == "fixed":
                 rho_k = 2 * self.n_components / (k + 2*self.n_components)
             elif stepsize_strategy == "linesearch":
@@ -74,8 +77,10 @@ class BlockCoordinateFrankWolfe:
                     #does not matter
                     rho_k = 1
                 else:
-                    numerator = gamma_k * 1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - self.problem.h_i(ik, s_ik)) + v_k.dot(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))
-                    denominator = (1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - self.problem.h_i(ik, s_ik)))**2 + np.linalg.norm(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))**2
+                    #numerator2 = gamma_k * 1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - h_ik_sik) + v_k.dot(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))
+                    numerator = gamma_k * (beta_k_list[ik] - 1/self.n_components * h_ik_sik) + v_k.dot( z_k_list[:, ik] - 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik))
+                    #denominator2 = (1/self.n_components * (self.problem.h_i(ik, X_k[:, ik]) - h_ik_sik))**2 + np.linalg.norm(1/self.n_components * self.problem.compute_Ai_dot_x(ik, -d_ik))**2
+                    denominator = ((beta_k_list[ik] - 1/self.n_components * h_ik_sik))**2 + np.linalg.norm(z_k_list[:, ik] - 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik))**2
                     rho_k = numerator / denominator
                     if np.abs(rho_k) < 1e-6:
                         rho_k = 0
@@ -83,16 +88,16 @@ class BlockCoordinateFrankWolfe:
                     assert rho_k >= 0
 
             #update beta_k and z_k
-            beta_k += rho_k * (1/self.n_components * self.problem.h_i(ik, s_ik) - beta_k_list[ik])
-            beta_k_list[ik] = (1 - rho_k) * beta_k_list[ik] + rho_k * 1/self.n_components * self.problem.h_i(ik, s_ik)
-            z_k += rho_k  * ( 1/ self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik) - z_k_list[:, ik])
-            z_k_list[:, ik] = (1 - rho_k) * z_k_list[:, ik] + rho_k * 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik)
+            beta_k += rho_k * (1/self.n_components * h_ik_sik - beta_k_list[ik])
+            beta_k_list[ik] = (1 - rho_k) * beta_k_list[ik] + rho_k * 1/self.n_components * h_ik_sik
+            z_k += rho_k  * ( 1/ self.n_components * Aik_sik - z_k_list[:, ik])
+            z_k_list[:, ik] = (1 - rho_k) * z_k_list[:, ik] + rho_k * 1/self.n_components * Aik_sik
 
             #update iterate
             X_k[:, ik] = (1-rho_k) * X_k[:, ik] + rho_k * s_ik
 
             if not self.problem.is_convex:
-                beta_z_dic[ik].append(np.concatenate((np.array([1/self.n_components * self.problem.h_i(ik, s_ik)]), 1/self.n_components * self.problem.compute_Ai_dot_x(ik, s_ik))))
+                beta_z_dic[ik].append(np.concatenate((np.array([1/self.n_components * h_ik_sik]), 1/self.n_components * Aik_sik)))
                 x_dic[ik].append(s_ik.copy())
                 weights_dic[ik] = ((1-rho_k) * np.array(weights_dic[ik])).tolist()
                 weights_dic[ik].append(rho_k)

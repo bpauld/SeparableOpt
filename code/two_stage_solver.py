@@ -66,6 +66,12 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
                                                                 T=self.n_components * 10)
             
             X_final = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
+
+            rec = np.zeros_like(w_K)
+            for i in range(self.n_components):
+                x_i = caratheodory_output.y_dic[i][0] @ caratheodory_output.y_dic[i][1]
+                rec += 1/self.n_components * np.concatenate(([self.problem.h_i(i, X_final[:, i])],self.problem.compute_Ai_dot_x(i, X_final[:, i])))
+            print(np.linalg.norm(rec - w_K))
             
             cost_final = self.problem.h(X_final)
             infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_final))
