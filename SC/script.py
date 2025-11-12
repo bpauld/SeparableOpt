@@ -31,7 +31,7 @@ def create_random_sc_instance(n, m, seed=0):
 
 def get_approximate_dual_lipschitz_constant(sc_problem: SCProblem):
     #build the Q
-    max_Gi = np.linalg.norm(sc_problem.b)
+    max_Gi = np.linalg.norm(sc_problem.b_ineq)
     for i in range(sc_problem.n):
         x_ik = sc_problem.D[i, :]
         candidate_G_i = np.linalg.norm(x_ik - 1/sc_problem.n * sc_problem.I)
@@ -46,6 +46,8 @@ def get_approximate_dual_lipschitz_constant(sc_problem: SCProblem):
 def test_function():
     n = 100
     m = 25
+    dimension_eq = 0
+    dimension_ineq = m
 
     sc_problem = create_random_sc_instance(n, m)
 
@@ -60,9 +62,11 @@ def test_function():
     max_iter_block_FW = int(max_iter_two_stage * (1 - ratio_iter_stoch_dual_subgradient))
     freq_compute_dual_stoch = n * 10 # freq_compute_dual * n
     alpha_bar_stoch = n / G
-    lbd_0 = np.random.randn(m)
+    lbd_0 = np.random.randn(dimension_eq)
+    mu_0 = np.zeros(dimension_ineq)
     start_time_2_stage = time.time()
     history_stoch_dual_sub, history_block_FW, X_sol = two_stage_solver.optimize(lbd_0=lbd_0,
+                                                                                mu_0=mu_0,
                                                                         max_iter_stochastic_dual_subgradient=max_iter_stoch_dual_subgradient,
                                                                         alpha_bar=alpha_bar_stoch,
                                                                         max_iter_block_FW=max_iter_block_FW, 

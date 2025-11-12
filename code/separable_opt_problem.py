@@ -18,7 +18,7 @@ class SeparableOptProblem(ABC):
     - Other abstract methods as needed
     """
 
-    def __init__(self, n, h_list, A_list, b, is_convex=True):
+    def __init__(self, n, h_list, A_eq_list=None, b_eq=None, A_ineq_list=None, b_ineq=None, is_convex=True):
         """
         Initialize the separable optimization problem.
 
@@ -32,15 +32,23 @@ class SeparableOptProblem(ABC):
             of constraints and d_i is the dimension of x_i.
         """
         self.n = n
-        self.A_list = A_list
         self.h_list = h_list
-        #self.oracle_list = oracle_list
-        self.b = b
+        self.A_eq_list = A_eq_list
+        self.b_eq = b_eq
+        self.A_ineq_list = A_ineq_list
+        self.b_ineq = b_ineq
         self.is_convex = is_convex
 
+        if self.b_eq is None:
+            self.b_eq = np.zeros(0)
+        if self.b_ineq is None:
+            self.b_ineq = np.zeros(0)
+
         # Validate that A_list has n elements
-        if len(A_list) != n:
-            raise ValueError(f"A_list must have exactly n={n} elements, got {len(A_list)}")
+        if A_eq_list is not None and len(A_eq_list) != n:
+            raise ValueError(f"A_list must have exactly n={n} elements, got {len(A_eq_list)}")
+        if A_ineq_list is not None and len(A_ineq_list) != n:
+            raise ValueError(f"A_list must have exactly n={n} elements, got {len(A_ineq_list)}")
         # Validate that h_list has n elements
         if len(h_list) != n:
             raise ValueError(f"h_list must have exactly n={n} elements, got {len(h_list)}")
@@ -89,11 +97,11 @@ class SeparableOptProblem(ABC):
         return 1/self.n * result
 
     @abstractmethod
-    def oracle(self, i, gamma, g):
+    def oracle(self, i, gamma, g, v):
         """
         Oracle for the i-th block:
 
-            argmin_{x_i in X_i} gamma * h_i(x_i) + g^T A_i x_i
+            argmin_{x_i in X_i} gamma * h_i(x_i) + g^T A_eq_i x_i + v^T A_ineq_i x_i
 
         Parameters
         ----------
@@ -110,8 +118,15 @@ class SeparableOptProblem(ABC):
             Minimizer x_i^* in X_i
         """
         pass
+
+    @abstractmethod
+    def get_di(self, i):
+        """
+        Returns the dimension di of the vector x_i
+        """
+        pass
     
-    def compute_dual(self, lbd):
+    def compute_dual(self, lbd, mu):
         """
         Compute the dual function value at lambda.
 
@@ -127,12 +142,11 @@ class SeparableOptProblem(ABC):
         """
         dual_value = 0.0
         for i in range(self.n):
-            dual_value += 1/self.n * self.oracle(i, 1, lbd)[1]
-            #dual_value += (lbd @ (self.A_list[i] @ x_i_star)) + self.h_list[i](x_i_star)
-        dual_value -=  lbd @ self.b
+            dual_value += 1/self.n * self.oracle(i, 1, lbd, mu)[1]
+        dual_value -=  lbd @ self.b_eq + mu @ self.b_ineq
         return dual_value
 
-    def compute_Ai_dot_x(self, i, x_i):
+    def compute_Ai_eq_dot_x(self, i, x_i):
         """
         Compute A_i @ x_i.
 
@@ -148,11 +162,33 @@ class SeparableOptProblem(ABC):
         ndarray
             A_i @ x_i
         """
-        return self.A_list[i] @ x_i
-
-    def compute_A_dot_x(self, x):
+        if self.A_eq_list is None:
+            return np.zeros(0)
+        return self.A_eq_list[i] @ x_i
+    
+    def compute_Ai_ineq_dot_x(self, i, x_i):
         """
-        Compute sum_{i=1}^n A_i @ x_i.
+        Compute A_i @ x_i.
+
+        Parameters
+        ----------
+        i : int
+            Block index
+        x_i : ndarray
+            Block variable
+
+        Returns
+        -------
+        ndarray
+            A_i @ x_i
+        """
+        if self.A_ineq_list is None:
+            return np.zeros(0)
+        return self.A_ineq_list[i] @ x_i
+
+    def compute_A_eq_dot_x(self, x):
+        """
+        Compute 1/n * sum_{i=1}^n A_eq_i @ x_i.
 
         Parameters
         ----------
@@ -167,16 +203,42 @@ class SeparableOptProblem(ABC):
         result = 0.0
         if isinstance(x, dict):
             for i in range(self.n):
-                Ai_xi = self.compute_Ai_dot_x(i, x[i])
+                Ai_xi = self.compute_Ai_eq_dot_x(i, x[i])
                 result += Ai_xi
         else:
             # Assume x is a matrix where column i is x_i
             for i in range(self.n):
-                Ai_xi = self.compute_Ai_dot_x(i, x[:, i])
+                Ai_xi = self.compute_Ai_eq_dot_x(i, x[:, i])
+                result += Ai_xi
+        return 1/self.n * result
+    
+    def compute_A_ineq_dot_x(self, x):
+        """
+        Compute 1/n * sum_{i=1}^n A_ineq_i @ x_i.
+
+        Parameters
+        ----------
+        x : ndarray or dict
+            Full variable
+
+        Returns
+        -------
+        ndarray
+            1/n * sum_{i=1}^n A_ineq_i @ x_i
+        """
+        result = 0.0
+        if isinstance(x, dict):
+            for i in range(self.n):
+                Ai_xi = self.compute_Ai_ineq_dot_x(i, x[i])
+                result += Ai_xi
+        else:
+            # Assume x is a matrix where column i is x_i
+            for i in range(self.n):
+                Ai_xi = self.compute_Ai_ineq_dot_x(i, x[:, i])
                 result += Ai_xi
         return 1/self.n * result
 
-    def compute_AiT_dot_g(self, i, g):
+    #def compute_AiT_dot_g(self, i, g):
         """
         Compute A_i^T @ g.
 
@@ -192,9 +254,9 @@ class SeparableOptProblem(ABC):
         ndarray
             A_i^T @ g
         """
-        return self.A_list[i].T @ g
+     #   return self.A_list[i].T @ g
 
-    def get_constraint_rhs(self):
+    #def get_constraint_rhs(self):
         """
         Get the right-hand side b of the constraint 1/n * sum_{i=1}^n A_i x_i = b.
 
@@ -203,7 +265,7 @@ class SeparableOptProblem(ABC):
         ndarray
             Right-hand side vector b
         """
-        return self.b
+    #    return self.b
 
     def get_feasible_point(self):
         """
@@ -217,7 +279,7 @@ class SeparableOptProblem(ABC):
         """
         raise NotImplementedError("get_feasible_point must be implemented in subclass")
 
-    def check_feasibility(self, x, tol=1e-6):
+    #def check_feasibility(self, x, tol=1e-6):
         """
         Check if x is feasible (satisfies the constraint within tolerance).
 
@@ -233,8 +295,8 @@ class SeparableOptProblem(ABC):
         bool
             True if feasible, False otherwise
         """
-        Ax = self.compute_A_dot_x(x)
-        return np.linalg.norm(Ax - self.b) <= tol
+    #    Ax = self.compute_A_eq_dot_x(x)
+    #    return np.linalg.norm(Ax - self.b) <= tol
     
     def compute_infeasibility(self, x):
         """
@@ -250,8 +312,11 @@ class SeparableOptProblem(ABC):
         float
             Infeasibility norm
         """
-        Ax = self.compute_A_dot_x(x)
-        return Ax - self.b
+        Aeq_x = self.compute_A_eq_dot_x(x)
+        Aineq_x = self.compute_A_ineq_dot_x(x)
+        infeas_eq = Aeq_x - self.b_eq
+        infeas_ineq = np.clip(Aineq_x - self.b_ineq, 0, None)
+        return np.concatenate((infeas_eq, infeas_ineq))
 
     def get_y_ik(self, i, y_k):
         """
@@ -288,7 +353,7 @@ class ConvexSeparableOptProblem(SeparableOptProblem):
     where each h_i is convex.
     """
 
-    def __init__(self, n, h_list, A_list, b):
+    def __init__(self, n, h_list, A_eq_list=None, b_eq=None, A_ineq_list=None, b_ineq=None):
         """
         Initialize the convex separable optimization problem.
 
@@ -303,7 +368,7 @@ class ConvexSeparableOptProblem(SeparableOptProblem):
         b : ndarray
             Right-hand side of the constraint
         """
-        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b, is_convex=True)
+        super().__init__(n=n, h_list=h_list, A_eq_list=A_eq_list, b_eq=b_eq, A_ineq_list=A_ineq_list, b_ineq=b_ineq, is_convex=True)
 
 
 class NonConvexSeparableOptProblem(SeparableOptProblem):
@@ -318,7 +383,7 @@ class NonConvexSeparableOptProblem(SeparableOptProblem):
     where h_i and X_i can be nonconvex.
     """
 
-    def __init__(self, n, h_list, A_list, b):
+    def __init__(self, n, h_list, A_eq_list=None, b_eq=None, A_ineq_list=None, b_ineq=None):
         """
         Initialize the nonconvex separable optimization problem.
 
@@ -333,7 +398,7 @@ class NonConvexSeparableOptProblem(SeparableOptProblem):
         b : ndarray
             Right-hand side of the constraint
         """
-        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b, is_convex=False)
+        super().__init__(n=n, h_list=h_list, A_eq_list=A_eq_list, b_eq=b_eq, A_ineq_list=A_ineq_list, b_ineq=b_ineq, is_convex=False)
 
     @abstractmethod
     def build_final_solution_from_caratheodory_output(self, caratheodory_output):

@@ -19,7 +19,7 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
                 raise ValueError("For nonconvex problems, problem must be an instance of NonConvexSeparableOptProblem")
 
 
-    def optimize(self, lbd_0, max_iter_stochastic_dual_subgradient, alpha_bar, 
+    def optimize(self, lbd_0, mu_0, max_iter_stochastic_dual_subgradient, alpha_bar, 
                  max_iter_block_FW, 
                  freq_compute_dual_cost=100,
                  freq_compute_primal_cost=100,
@@ -28,7 +28,7 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
         
         stochastic_dual_subgradient_solver = StochasticDualSubgradient(problem=self.problem)
 
-        history_stoch_dual_sub, X = stochastic_dual_subgradient_solver.optimize(lbd_0=lbd_0, 
+        history_stoch_dual_sub, X = stochastic_dual_subgradient_solver.optimize(lbd_0=lbd_0, mu_0=mu_0,
                                                                              max_iter=max_iter_stochastic_dual_subgradient, 
                                                                              freq_compute_dual=freq_compute_dual_cost, 
                                                                              alpha_bar=alpha_bar)
@@ -62,16 +62,19 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
                                                               weights_dic=weights_dic, verbose=True)
 
             caratheodory_output = carathodory_mnp_solver.solve(z=w_K, 
-                                                                nb_indices_considered=2*self.problem.b.shape[0],
+                                                                nb_indices_considered=2*(self.problem.b_eq.shape[0] + self.problem.b_ineq.shape[0]),
                                                                 T=self.n_components * 10)
             
             X_final = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
 
-            rec = np.zeros_like(w_K)
+            rec1 = np.zeros_like(w_K)
+            rec2 = np.zeros_like(w_K)
             for i in range(self.n_components):
                 x_i = caratheodory_output.y_dic[i][0] @ caratheodory_output.y_dic[i][1]
-                rec += 1/self.n_components * np.concatenate(([self.problem.h_i(i, X_final[:, i])],self.problem.compute_Ai_dot_x(i, X_final[:, i])))
-            print(np.linalg.norm(rec - w_K))
+                rec1 += 1/self.n_components * np.concatenate(([self.problem.h_i(i, X_final[:, i])],self.problem.compute_Ai_ineq_dot_x(i, X_final[:, i])))
+                rec2 += 1/self.n_components * np.concatenate(([self.problem.h_i(i, x_i)],self.problem.compute_Ai_ineq_dot_x(i, x_i)))
+            print(np.linalg.norm(rec1 - w_K))
+            print(np.linalg.norm(rec2 - w_K))
             
             cost_final = self.problem.h(X_final)
             infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_final))

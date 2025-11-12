@@ -38,7 +38,7 @@ class SCProblem(NonConvexSeparableOptProblem):
 
         # Create h_list from c_list (linear functions)
         h_list = []
-        A_list = []
+        A_ineq_list = []
         Ai = np.zeros((self.m, 1+self.m))
         Ai[:, 1:] = np.eye(self.m)
         for i in range(n):
@@ -48,21 +48,24 @@ class SCProblem(NonConvexSeparableOptProblem):
             def h_i(x, c=c_i):
                 return c @ x
             h_list.append(h_i)
-            A_list.append(Ai)
+            A_ineq_list.append(Ai)
 
-        b = 1/n * I 
+        b_ineq = 1/n * I 
         
 
         # Call parent constructor (is_convex=True for LP)
-        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b)
+        super().__init__(n=n, h_list=h_list, A_ineq_list=A_ineq_list, b_ineq=b_ineq)
 
 
-    def oracle(self, i, gamma, g):
+    def get_di(self, i):
+        return 1 + self.m
+
+    def oracle(self, i, gamma, g, v):
         #two cases: either the first term of the argmin is 0 or 1
         #we must only solve an LP if it is 1
         #set up the LP for that case
         #c_i = np.zeros(self.m)
-        c_i = - gamma * self.r[i, :]/self.D[i, :] + g
+        c_i = - gamma * self.r[i, :]/self.D[i, :] + v
         A_ub = -np.ones((1, self.m))
         b_ub = -self.beta * np.sum(self.D[i, :])
         #define bounds for each variable
@@ -76,8 +79,11 @@ class SCProblem(NonConvexSeparableOptProblem):
             return np.zeros(1 + self.m), 0.0
     
     #overwrite compute_Ai_dot_x for more efficiency
-    def compute_Ai_dot_x(self, i, x_i):
+    def compute_Ai_ineq_dot_x(self, i, x_i):
         return x_i[1:]
+    
+    def compute_Ai_eq_dot_x(self, i, x_i):
+        return np.zeros(0)
     
     def build_final_solution_from_caratheodory_output(self, caratheodory_output):
         X_final = np.zeros((1+self.m, self.n))

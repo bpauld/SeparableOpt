@@ -62,7 +62,7 @@ def test_function(seed=None):
         rand_xi = 0.5 * polytope_list[i].vertices[0] + 0.5 * polytope_list[i].vertices[1]
         b += 1/n * A_list[i] @ rand_xi
         
-    lp_problem = LPProblem(n=n, c_list=c_list, A_list=A_list, b=b, oracle_list=oracle_list)
+    lp_problem = LPProblem(n=n, c_list=c_list, A_eq_list=A_list, b_eq=b, oracle_list=oracle_list)
 
     two_stage_solver = TwoStageStochasticDualSubgradientBlockFrankWolfe(problem=lp_problem)
     G = get_approximate_dual_lipschitz_constant(A_list, b, polytope_list)
@@ -76,8 +76,10 @@ def test_function(seed=None):
     freq_compute_dual_stoch = n * 10 # freq_compute_dual * n
     alpha_bar_stoch = n / G
     lbd_0 = np.random.randn(m)
+    mu_0 = np.zeros(0)
     start_time_2_stage = time.time()
     history_stoch_dual_sub, history_block_FW, X_sol = two_stage_solver.optimize(lbd_0=lbd_0,
+                                                                                mu_0=mu_0,
                                                                         max_iter_stochastic_dual_subgradient=max_iter_stoch_dual_subgradient,
                                                                         alpha_bar=alpha_bar_stoch,
                                                                         max_iter_block_FW=max_iter_block_FW, 

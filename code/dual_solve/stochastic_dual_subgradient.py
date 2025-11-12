@@ -16,13 +16,18 @@ class StochasticDualSubgradient:
         """
         self.problem = problem
         self.n_components = problem.n
-        self.b = problem.b
+        self.b_eq = problem.b_eq
+        self.b_ineq = problem.b_ineq
         #self.A_list = separable_opt_problem.A_list
     
-    def optimize(self, lbd_0, max_iter=100, freq_compute_dual=1000, alpha_bar=1):
+    def optimize(self, lbd_0, mu_0, max_iter=100, freq_compute_dual=1000, alpha_bar=1):
         
         lbd = lbd_0.copy()
         lbd_avg = lbd_0.copy()
+        mu = mu_0.copy()
+        mu_avg = mu_0.copy()
+        if np.any(mu_0 < 0):
+            raise ValueError("Initial dual variable for inequality constraints mu_0 must be nonnegative")
         history = {
             'dual_value': [],
             'iteration': [],
@@ -34,10 +39,10 @@ class StochasticDualSubgradient:
         nb_oracle_calls = 0
 
         #create matrix of primal candidates (this is only if we want to keep track of the primal solution, or to help initialize the block Frank Wolfe algorithm)
-        X = np.zeros((self.problem.A_list[0].shape[1], self.n_components))
+        X = np.zeros((self.problem.get_di(0), self.n_components)) #assuming here all x_i's have the same dimension
         for i in range(self.n_components):
             #initialize with a feasible primal point
-            X[:, i] = self.problem.oracle(i, 1, lbd)[0]
+            X[:, i] = self.problem.oracle(i, 1, lbd, mu)[0]
         index_counters = np.zeros(self.n_components)
         
         for k in range(max_iter):
@@ -45,21 +50,25 @@ class StochasticDualSubgradient:
             #pick index at random
             ik = np.random.randint(self.n_components)
 
-            x_ik = self.problem.oracle(ik, 1, lbd)[0]
+            x_ik = self.problem.oracle(ik, 1, lbd, mu)[0]
             nb_oracle_calls += 1
             X[:, ik] = (1/(index_counters[ik] + 1)) * (index_counters[ik] * X[:, ik] + x_ik)
             index_counters[ik] += 1
 
-            gk = self.problem.compute_Ai_dot_x(ik, x_ik) / self.n_components - self.b/self.n_components
+            gk_eq = self.problem.compute_Ai_eq_dot_x(ik, x_ik) / self.n_components - self.b_eq/self.n_components
+            gk_ineq = self.problem.compute_Ai_ineq_dot_x(ik, x_ik) / self.n_components - self.b_ineq/self.n_components
             alpha_k = alpha_bar/np.sqrt(k+1)
-            lbd += alpha_k * gk
+            lbd += alpha_k * gk_eq
+            mu += alpha_k * gk_ineq
+            mu = np.maximum(mu, 0)  #project onto nonnegative orthant
             #print(lbd, type(lbd_avg))
 
             lbd_avg = (1/(k+2)) * ((k+1)*lbd_avg + lbd)
+            mu_avg = (1/(k+2)) * ((k+1)*mu_avg + mu)
 
             if k%freq_compute_dual == 0:
                 history["iteration"].append(k)
-                history['dual_value'].append(self.problem.compute_dual(lbd_avg))
+                history['dual_value'].append(self.problem.compute_dual(lbd_avg, mu_avg))
                 history['nb_oracle_calls'].append(nb_oracle_calls)
                 primal_cost = self.problem.h(X)
                 infeasibility = np.linalg.norm(self.problem.compute_infeasibility(X))

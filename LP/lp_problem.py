@@ -19,7 +19,7 @@ class LPProblem(ConvexSeparableOptProblem):
     where each X_i is a polytope and h_i(x_i) = c_i^T x_i is linear.
     """
 
-    def __init__(self, n, c_list, A_list, b, oracle_list):
+    def __init__(self, n, c_list, A_eq_list, b_eq, oracle_list):
         """
         Initialize the LP problem.
 
@@ -47,7 +47,7 @@ class LPProblem(ConvexSeparableOptProblem):
             h_list.append(h_i)
 
         # Call parent constructor (is_convex=True for LP)
-        super().__init__(n=n, h_list=h_list, A_list=A_list, b=b)
+        super().__init__(n=n, h_list=h_list, A_eq_list=A_eq_list, b_eq=b_eq, A_ineq_list=None, b_ineq=None)
 
         # Store LP-specific data
         self.c_list = c_list
@@ -56,8 +56,11 @@ class LPProblem(ConvexSeparableOptProblem):
         # Validate oracle_list
         if len(oracle_list) != n:
             raise ValueError(f"oracle_list must have exactly n={n} elements, got {len(oracle_list)}")
+        
+    def get_di(self, i):
+        return self.A_eq_list[i].shape[1]
 
-    def oracle(self, i, gamma, g):
+    def oracle(self, i, gamma, g, v):
         """
         Oracle for the i-th block:
 
