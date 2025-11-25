@@ -90,6 +90,8 @@ class BlockCoordinateFrankWolfe:
                     rho_k = numerator / denominator
                     if np.abs(rho_k) < 1e-6:
                         rho_k = 0
+                    if np.abs(numerator) < 1e-8:
+                        rho_k = 0
                     rho_k = min(rho_k, 1)
                     assert rho_k >= 0
 

@@ -1,5 +1,6 @@
-from sc_problem import SCProblem
 import numpy as np
+from pev_problem import PEVProblem
+from utils import create_pevs_problem
 import sys
 import os
 import time
@@ -7,36 +8,41 @@ import time
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..', 'code'))
 from two_stage_solver import TwoStageStochasticDualSubgradientBlockFrankWolfe
 from dual_solve.dual_subgradient import DualSubgradient
+from pev_problem import PEVProblem
 
-def create_random_sc_instance(n, m, seed=0):
-    #following the setup in Large Scale Mixed-Integer Optimization: a Solution Method with Supply Chain Applications
-    #Robin Vujanic, Peyman Mohajerin Esfahani, Paul Goulart and Manfred Morari
-    np.random.seed(seed)
-    K = np.random.uniform(1, 100, size=n)
-    r = np.random.uniform(1, 15, size=(n, m))
-    D = np.random.uniform(1, 100, size=(n, m))
-    beta = 0.6
 
-    if n == 100 and m == 25:
-        I = np.random.uniform(1000, 2500, size=m)
-    elif n == 300 and m == 75:
-        I = np.random.uniform(4000, 5000, size=m)
-    elif n== 500 and m==50:
-        I = np.random.uniform(7000, 85000, size=m)
-    elif n==600 and m==50:
-        I = np.random.uniform(8500, 9500, size=m)
-    elif n==1000 and m==100:
-        I = np.random.uniform(14500, 15500, size=m)
-    
-    sc_problem = SCProblem(K=K, r=r, D=D, I=I, beta=beta)
-    return sc_problem
+def create_pevs_problem(n, m, random_seed=0):
+    np.random.seed(random_seed)
+    delta_T = 1/3
+    xi = np.random.uniform(low=0.015, high=0.075, size=n)
+    xi_u = 1 - xi
+    xi_v = 1 + xi #useless for charging only scenario
+    P = np.random.uniform(low=3, high=5, size=n)
+    E_min = np.ones(n)
+    E_max = np.random.uniform(low=8, high=16, size=n)
+    E_init = np.random.uniform(low=0.2, high=0.5) * E_max
+    E_ref = np.random.uniform(low=0.55, high=0.8) * E_max
+    P_max = 3 * n * np.ones(m)
+    P_min = - P_max  # no need to consider P_min in charging only scenario if P_min < 0
+    Cu = np.random.uniform(low=19, high=35, size=m)
+    #Cv = 1.1 * Cu
 
-def get_approximate_dual_lipschitz_constant(sc_problem: SCProblem):
+    delta_u = np.random.uniform(low=-0.3, high=0.3, size=n)
+    delta_v = np.random.uniform(low=-0.3, high=0.3, size=n)
+
+    #compute rho
+    rho = m * np.max(P)
+    P_max_bar = P_max - rho
+    P_min_bar = P_min + rho
+
+    return PEVProblem(n, m, delta_T, xi_u, xi_v, P, E_min, E_max, E_init, E_ref, P_max, Cu, rho, P_max_bar, delta_u)
+
+def get_approximate_dual_lipschitz_constant(pev_problem: PEVProblem):
     #build the Q
-    max_Gi = np.linalg.norm(sc_problem.b_ineq)
-    for i in range(sc_problem.n):
-        x_ik = sc_problem.D[i, :]
-        candidate_G_i = np.linalg.norm(x_ik - 1/sc_problem.n * sc_problem.I)
+    max_Gi = 0 
+    for i in range(pev_problem.n):
+        x_ik = pev_problem.oracle(i, 1, np.zeros(0), np.random.randn(pev_problem.m))[0]
+        candidate_G_i = np.linalg.norm(x_ik - 1/pev_problem.n * pev_problem.P_max_bar)
         if candidate_G_i > max_Gi:
             max_Gi = candidate_G_i
     return max_Gi
@@ -51,13 +57,13 @@ def test_function(n, m, max_number_oracle_calls,
     dimension_eq = 0
     dimension_ineq = m
 
-    sc_problem = create_random_sc_instance(n, m)
+    pev_problem = create_pevs_problem(n, m, random_seed=0)
 
 
-    dual_subgradient_solver = DualSubgradient(problem=sc_problem)
+    dual_subgradient_solver = DualSubgradient(problem=pev_problem)
 
-    two_stage_solver = TwoStageStochasticDualSubgradientBlockFrankWolfe(problem=sc_problem)
-    G = get_approximate_dual_lipschitz_constant(sc_problem)
+    two_stage_solver = TwoStageStochasticDualSubgradientBlockFrankWolfe(problem=pev_problem)
+    G = get_approximate_dual_lipschitz_constant(pev_problem)
     print(f"Approximate value of G = {G}")
 
     max_iter_two_stage = max_number_oracle_calls
@@ -92,15 +98,15 @@ def test_function(n, m, max_number_oracle_calls,
                                                                         stepsize_strategy_block_fw='linesearch')
 
     total_time_2_stage = time.time() - start_time_2_stage
-    opt_primal_value_2_stage = sc_problem.h(X_sol_two_stage)
-    infeasibility_2_stage = np.linalg.norm(sc_problem.compute_infeasibility(X_sol_two_stage))
+    opt_primal_value_2_stage = pev_problem.h(X_sol_two_stage)
+    infeasibility_2_stage = np.linalg.norm(pev_problem.compute_infeasibility(X_sol_two_stage))
     print(f"Optimal value found using 2-stage algorithm = {opt_primal_value_2_stage} with infeasibility = {infeasibility_2_stage:.4e} in {total_time_2_stage:.4f} seconds")
 
 
-    return sc_problem, history_dual_sub, history_stoch_dual_sub, history_block_FW, X_sol_dual_sub, X_sol_two_stage
+    return pev_problem, history_dual_sub, history_stoch_dual_sub, history_block_FW, X_sol_dual_sub, X_sol_two_stage
 
 if __name__ == "__main__":
-    n = 100
-    m = 25
-    max_number_oracle_calls = n * 100
-    test_function(n, m, max_number_oracle_calls)
+    n = 1000
+    m = 10
+    max_number_oracle_calls = n * 1000
+    test_function(n, m, max_number_oracle_calls, alpha_bar_dual_sub=1)

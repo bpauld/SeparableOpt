@@ -55,8 +55,10 @@ class StochasticDualSubgradient:
             X[:, ik] = (1/(index_counters[ik] + 1)) * (index_counters[ik] * X[:, ik] + x_ik)
             index_counters[ik] += 1
 
-            gk_eq = self.problem.compute_Ai_eq_dot_x(ik, x_ik) / self.n_components - self.b_eq/self.n_components
-            gk_ineq = self.problem.compute_Ai_ineq_dot_x(ik, x_ik) / self.n_components - self.b_ineq/self.n_components
+            #gk_eq = self.problem.compute_Ai_eq_dot_x(ik, x_ik) / self.n_components - self.b_eq/self.n_components
+            #gk_ineq = self.problem.compute_Ai_ineq_dot_x(ik, x_ik) / self.n_components - self.b_ineq/self.n_components
+            gk_eq = self.problem.compute_Ai_eq_dot_x(ik, x_ik)  - self.b_eq
+            gk_ineq = self.problem.compute_Ai_ineq_dot_x(ik, x_ik) - self.b_ineq
             alpha_k = alpha_bar/np.sqrt(k+1)
             lbd += alpha_k * gk_eq
             mu += alpha_k * gk_ineq

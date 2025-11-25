@@ -65,21 +65,11 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
                                                                 nb_indices_considered=2*(self.problem.b_eq.shape[0] + self.problem.b_ineq.shape[0]),
                                                                 T=self.n_components * 10)
             
-            X_final = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
+            X_sol = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
 
-            rec1 = np.zeros_like(w_K)
-            rec2 = np.zeros_like(w_K)
-            for i in range(self.n_components):
-                x_i = caratheodory_output.y_dic[i][0] @ caratheodory_output.y_dic[i][1]
-                rec1 += 1/self.n_components * np.concatenate(([self.problem.h_i(i, X_final[:, i])],self.problem.compute_Ai_ineq_dot_x(i, X_final[:, i])))
-                rec2 += 1/self.n_components * np.concatenate(([self.problem.h_i(i, x_i)],self.problem.compute_Ai_ineq_dot_x(i, x_i)))
-            print(np.linalg.norm(rec1 - w_K))
-            print(np.linalg.norm(rec2 - w_K))
-            
-            cost_final = self.problem.h(X_final)
-            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_final))
+            cost_final = self.problem.h(X_sol)
+            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_sol))
             print(f"After Caratheodory MNP: final cost = {cost_final}, infeasibility = {infeasibility_final}")
 
-            #TODO: build final solution from Caratheodory output
 
         return history_stoch_dual_sub, history_block_FW, X_sol
