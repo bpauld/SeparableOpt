@@ -80,7 +80,7 @@ class StochasticDualSubgradient:
                 print(f"   Primal value = {primal_cost}, infeasibility = {infeasibility}")
         
         history['total_nb_oracle_calls'] = nb_oracle_calls
-        history['index_counters'] = index_counters
+        history['index_counters'] = index_counters.tolist()
         return history, X
     
     
