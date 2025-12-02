@@ -1,4 +1,4 @@
-# Nonconvex Optimization via Frank-Wolfe and Caratheodory.
+# Separable Optimization via Frank-Wolfe and Caratheodory.
 
 This repository contains code for solving nonconvex separable optimization problems of the form
 
@@ -14,27 +14,30 @@ where the functions $f_i$ and their domains need not be convex.
 
 The full theoretical background can be found in our paper:
 
-Benjamin Dubois-Taine and Alexandre d'Aspremont. "Frank-Wolfe meets Shapley-Folkman: a systematic approach for solving nonconvex separable problems with linear constraints". In: arXiv preprint.
+Benjamin Dubois-Taine, Laurent Pfeiffer, Nadia Oudjane, Adrien Seguret, Francis Bach. "". In: arXiv preprint.
 
 ## Use the code
 
-You should define a non convex separable problem by creating a child of the `NonConvexProblem` class defined in `code/non_convex_problem.py` and implementing the required functions. You can use the file `UnitCommitmentSquared/unit_commitment.py` as template.
+If your problem is convex, you should define the problem by creating a child of the `ConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions. You can use the file `LP/lp_problem.py` as template.
 
-You can then run the first conditional gradient method defined in `code/frank_wolfe_1.py`, followed by the second Caratheodory step, define in `exact_caratheodory.py` or `approximate_caratheodory.py`. You can use the file `UnitCommitmentSquared/script.py` as template.
+If your problem is nonconvex, you should define a child of the `NonConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions. You can use the file `SC/sc_problem.py` as template.
+
+You can then run the two-stage solver implemented in `two_stage_solver.py`
 
 ## Reproduce experiments
 
-To reproduce the experiments on the Unit Commitment problem, run one of the following in `UnitCommitmentSquared` folder:
+To reproduce the experiments on the LP problems, run the following in the `LP` folder:
 
 ```
 $ python script.py
 ```
-or 
-```
-$ python script_runtime.py
-```
 
 To reproduce the experiments on the charging of electric vehicles problem, run the following in `PEVs` folder:
+```
+$ python script.py
+```
+
+To reproduce the experiments on the supply chain optimization problem, run the following in `SC` folder:
 ```
 $ python script.py
 ```
@@ -47,9 +50,5 @@ To cite our work please use:
 
 ```
 @article{dubois2024frank,
-  title={Frank-Wolfe meets Shapley-Folkman: a systematic approach for solving nonconvex separable problems with linear constraints},
-  author={Dubois-Taine, Benjamin and d'Aspremont, Alexandre},
-  journal={arXiv preprint arXiv:2406.18282},
-  year={2024}
 }
 ```
