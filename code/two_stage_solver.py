@@ -28,7 +28,7 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
         
         stochastic_dual_subgradient_solver = StochasticDualSubgradient(problem=self.problem)
 
-        history_stoch_dual_sub, X = stochastic_dual_subgradient_solver.optimize(lbd_0=lbd_0, mu_0=mu_0,
+        history_stoch_dual_sub, X_stoch_dual_sub, beta_z_dic, x_dic, weights_dic = stochastic_dual_subgradient_solver.optimize(lbd_0=lbd_0, mu_0=mu_0,
                                                                              max_iter=max_iter_stochastic_dual_subgradient, 
                                                                              freq_compute_dual=freq_compute_dual_cost, 
                                                                              alpha_bar=alpha_bar)
@@ -37,20 +37,26 @@ class TwoStageStochasticDualSubgradientBlockFrankWolfe:
 
         block_coordinate_FW_solver = BlockCoordinateFrankWolfe(problem=self.problem, d_star=d_star)
 
-        if initialize_block_coordinate_FW_with_stochastic_dual_subgradient_output:
-            X0 = X
-        else:
-            #create matrix of primal candidates
-            X0 = np.zeros((self.problem.A_list[0].shape[1], self.n_components))
-            for i in range(self.n_components):
+        #if initialize_block_coordinate_FW_with_stochastic_dual_subgradient_output:
+        #    X0 = X
+        #else:
+        #    #create matrix of primal candidates
+        #    X0 = np.zeros((self.problem.A_list[0].shape[1], self.n_components))
+        #    for i in range(self.n_components):
                 #initialize with a feasible primal point
-                X0[:, i] = self.problem.oracle(i, 1, (np.random.randn(self.A_list[i].shape[1])))[0]
-        
+        #        X0[:, i] = self.problem.oracle(i, 1, (np.random.randn(self.A_list[i].shape[1])))[0]
 
-        history_block_FW, X_sol, w_K, beta_z_dic, x_dic, weights_dic = block_coordinate_FW_solver.optimize(X_0=X0, 
+        if self.problem.is_convex:
+            # we will just initialize the next step iwth the output of the stochastic dual subgradient method
+            beta_z_dic, x_dic, weights_dic = None, None, None
+        
+        history_block_FW, X_sol, w_K, beta_z_dic, x_dic, weights_dic = block_coordinate_FW_solver.optimize(X_0=X_stoch_dual_sub, 
                                                                max_iter=max_iter_block_FW, 
                                                                freq_compute_cost=freq_compute_primal_cost,
-                                                               stepsize_strategy=stepsize_strategy_block_fw)
+                                                               stepsize_strategy=stepsize_strategy_block_fw,
+                                                               beta_z_dic=beta_z_dic,
+                                                               x_dic=x_dic,
+                                                               weights_dic=weights_dic)
         #add the linear oracle calls from the previous algorithm
         history_block_FW['nb_oracle_calls'] = (np.array(history_block_FW['nb_oracle_calls']) + history_stoch_dual_sub['total_nb_oracle_calls']).tolist()
         history_block_FW['iteration'] = (np.array(history_block_FW['iteration']) + max_iter_stochastic_dual_subgradient).tolist()

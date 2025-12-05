@@ -100,7 +100,7 @@ def test_function(n, m, max_number_oracle_calls,
     ratio_iter_stoch_dual_subgradient = 0.5
     max_iter_stoch_dual_subgradient = int(max_iter_two_stage * ratio_iter_stoch_dual_subgradient)
     max_iter_block_FW = int(max_iter_two_stage * (1 - ratio_iter_stoch_dual_subgradient))
-    freq_compute_dual_stoch = max_iter_stoch_dual_subgradient // 20
+    freq_compute_dual_stoch = max_iter_stoch_dual_subgradient // 100
     lbd_0 = np.random.randn(dimension_eq)
     mu_0 = np.zeros(dimension_ineq)
     lbd_0 = np.zeros(dimension_eq)
@@ -147,10 +147,10 @@ def test_function(n, m, max_number_oracle_calls,
 if __name__ == "__main__":
     n = 1000
     m = 10
-    max_number_oracle_calls = n * 100
+    max_number_oracle_calls = n * 10000
     random_seed = 0
     alpha_bar_dual_sub_list = [0.1, 1, 10, 100]
-    alpha_bar_two_stage_list = [0.1, 1, 10]
+    alpha_bar_two_stage_list = [0.1, 1, 10, 100]
     
     pev_problem, history_dual_sub_list, history_stoch_dual_sub_list, history_block_FW_list, X_sol_dual_sub, X_sol_two_stage = test_function(n, m, max_number_oracle_calls, alpha_bar_dual_sub_list=alpha_bar_dual_sub_list, alpha_bar_two_stage_list=alpha_bar_two_stage_list, random_seed=random_seed)
     date_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

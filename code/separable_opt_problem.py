@@ -44,6 +44,8 @@ class SeparableOptProblem(ABC):
         if self.b_ineq is None:
             self.b_ineq = np.zeros(0)
 
+        self.m = self.b_eq.shape[0] + self.b_ineq.shape[0]
+
         # Validate that A_list has n elements
         if A_eq_list is not None and len(A_eq_list) != n:
             raise ValueError(f"A_list must have exactly n={n} elements, got {len(A_eq_list)}")

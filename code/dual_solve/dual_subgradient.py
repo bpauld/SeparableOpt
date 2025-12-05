@@ -56,12 +56,18 @@ class DualSubgradient:
                 h_i_Xi = 1/self.n_components * self.problem.h_i(i, X[:, i])
                 Ai_eq_Xi = 1/self.n_components * self.problem.compute_Ai_eq_dot_x(i, X[:, i])
                 Ai_ineq_Xi = 1/self.n_components * self.problem.compute_Ai_ineq_dot_x(i, X[:, i])
-                beta_z_dic[i] = [np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))]
-                beta_z = np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))
-                x_dic[i] = [X[:, i].copy()]
-                weights_dic[i] = [1.0]
+                beta_z_dic_i_0 = np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))
+
+                beta_z_dic[i] = np.zeros((beta_z_dic_i_0.shape[0], max_iter))
+                beta_z_dic[i][:, 0] = beta_z_dic_i_0
+                #beta_z_dic[i] = [np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))]
+                #beta_z = np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))
+                x_dic[i] = np.zeros((self.problem.get_di(i), max_iter))
+                x_dic[i][:, 0] = X[:, i].copy()
+                weights_dic[i] = np.zeros(max_iter)
+                weights_dic[i][0] = 1.0
         
-        for k in range(max_iter):
+        for k in range(max_iter-1):
 
             #pick index at random
             gk_eq = -self.b_eq.copy()
@@ -79,9 +85,14 @@ class DualSubgradient:
                 gk_ineq += Ai_ineq_Xi
 
                 if not self.problem.is_convex:
-                    beta_z_dic[i].append(np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi)))
-                    x_dic[i].append(x_ik.copy())
-                    weights_dic[i] = ((k+1)/(k+2) * np.array(weights_dic[i])).tolist() + [1/(k+2)]
+                    #beta_z_dic[i].append(np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi)))
+                    #x_dic[i].append(x_ik.copy())
+                    #weights_dic[i] = ((k+1)/(k+2) * np.array(weights_dic[i])).tolist() + [1/(k+2)]
+
+                    beta_z_dic[i][:, k+1] = np.concatenate((np.array([h_i_Xi]), Ai_eq_Xi, Ai_ineq_Xi))
+                    x_dic[i][:, k+1] = x_ik
+                    weights_dic[i] *= (k+1)/(k+2)
+                    weights_dic[i][k+1] = 1/(k+2)
 
             nb_oracle_calls += self.n_components
             #take dual step
@@ -113,9 +124,9 @@ class DualSubgradient:
             # and compute beta_z
             beta_z = np.zeros(1 + self.b_eq.shape[0] + self.b_ineq.shape[0])
             for i in range(self.n_components):
-                beta_z_dic[i] = np.array(beta_z_dic[i]).T
-                x_dic[i] = np.array(x_dic[i]).T
-                weights_dic[i] = np.array(weights_dic[i])
+                #beta_z_dic[i] = np.array(beta_z_dic[i]).T
+                #x_dic[i] = np.array(x_dic[i]).T
+                #weights_dic[i] = np.array(weights_dic[i])
                 beta_z += beta_z_dic[i].dot(weights_dic[i])
             #call Caratheodory algorithm
             carathodory_mnp_solver = MetaCaratheodoryMNPSolve(y_dic=beta_z_dic, 
@@ -126,14 +137,14 @@ class DualSubgradient:
                                                                 nb_indices_considered=2*(self.problem.b_eq.shape[0] + self.problem.b_ineq.shape[0]),
                                                                 T=self.n_components)
             
-            X_sol = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
+            X_sol_carath = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
 
-            cost_final = self.problem.h(X_sol)
-            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_sol))
+            cost_final = self.problem.h(X_sol_carath)
+            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_sol_carath))
             print(f"After Caratheodory MNP: final cost = {cost_final}, infeasibility = {infeasibility_final}")
 
 
-        return history, X_sol
+        return history, X_sol_carath
 
 
 def solve_dual_gd(prob, eta="1/k", max_iter=1000, solve_contracted_problem=False, verbose=True):
