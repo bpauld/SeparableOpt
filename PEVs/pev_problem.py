@@ -10,7 +10,7 @@ class PEVProblem(NonConvexSeparableOptProblem):
     PEV problem as a special case of NonConvexSeparableOptProblem.
     """
 
-    def __init__(self, n, m, delta_T, xi_u, xi_v, P, E_min, E_max, E_init, E_ref, P_max, Cu, rho, P_max_bar, delta_u):
+    def __init__(self, n, m, delta_T, xi_u, xi_v, P, E_min, E_max, E_init, E_ref, P_max, P_min, Cu, Cv, rho, P_max_bar, delta_u, delta_v):
         """
         Initialize the PEV problem.
 
@@ -58,10 +58,13 @@ class PEVProblem(NonConvexSeparableOptProblem):
         self.E_init = E_init
         self.E_ref = E_ref
         self.P_max = P_max
+        self.P_min = P_min
         self.Cu = Cu
+        self.Cv = Cv
         self.rho = rho
         self.P_max_bar = P_max_bar
         self.delta_u = delta_u
+        self.delta_v = delta_v
         self.b_ineq_bar = P_max_bar / self.n
 
         h_list = []
@@ -145,6 +148,7 @@ class PEVProblem(NonConvexSeparableOptProblem):
                 nb_trivial_cvx_comb += 1
             else:
                 index_alpha_max = np.argmax(y_dic[i][1])
+                index_alpha_sample = np.random.choice(y_dic[i][1].shape[0], p=y_dic[i][1])
                 X_final[:, i] = y_dic[i][0][:, index_alpha_max]
         print(f"Number of trivial convex combinations after Caratheodory: {nb_trivial_cvx_comb} out of {self.n}")
         return X_final
