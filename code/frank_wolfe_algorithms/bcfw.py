@@ -121,12 +121,12 @@ class BlockCoordinateFrankWolfe:
                 numerator = gamma_k * (beta_k_list[ik] - 1/self.n_components * h_ik_sik)  + v_eq_k.dot( z_eq_k_list[:, ik] - 1/self.n_components * Aeq_ik_sik) + v_ineq_k.dot( z_ineq_k_list[:, ik] - 1/self.n_components * Aineq_ik_sik)
                 denominator = ((beta_k_list[ik] - 1/self.n_components * h_ik_sik))**2 + np.linalg.norm(z_eq_k_list[:, ik] - 1/self.n_components * Aeq_ik_sik)**2 + np.linalg.norm(z_ineq_k_list[:, ik] - 1/self.n_components * Aineq_ik_sik)**2
                 rho_k = numerator / denominator
-                if np.abs(rho_k) < 1e-8:
+                if numerator < 0 and numerator > -1e-6:
                     rho_k = 0
-                if np.abs(numerator) < 1e-8:
+                if denominator == 0:
                     rho_k = 0
                 rho_k = min(rho_k, 1)
-                assert rho_k >= 0
+                assert rho_k >= 0, f"rho_k must be non-negative, got rho_k = {rho_k}, numerator = {numerator}, denominator = {denominator}"
 
             #update beta_k and z_k
             beta_k += rho_k * (1/self.n_components * h_ik_sik - beta_k_list[ik])
@@ -177,8 +177,9 @@ class BlockCoordinateFrankWolfe:
                 infeasibility = np.sqrt(np.linalg.norm(z_eq_k - self.b_eq)**2 + np.linalg.norm(np.clip(z_ineq_k - self.b_ineq, 0, None))**2)
                 history['infeasibility'].append(infeasibility)
                 history['primal_value'].append(beta_k)
-                history['fw_objective_value'].append(0.5 * gamma_k**2 + 0.5 * v_eq_k.dot(v_eq_k) + 0.5 * v_ineq_k.dot(v_ineq_k))
-                print(f"At iteration {k}, primal value = {beta_k}, infeasibility = {infeasibility}")
+                fw_objective_value = 0.5 * gamma_k**2 + 0.5 * v_eq_k.dot(v_eq_k) + 0.5 * v_ineq_k.dot(v_ineq_k)
+                history['fw_objective_value'].append(fw_objective_value)
+                print(f"At iteration {k}, primal value = {beta_k}, infeasibility = {infeasibility}, rho_k = {rho_k}, numerator = {numerator}, denominator = {denominator}, fw_objective_value = {fw_objective_value}")
         
         #put y_dic and weights as arrays
         #if not self.problem.is_convex:
