@@ -18,7 +18,11 @@ class SeparableOptProblem(ABC):
     - Other abstract methods as needed
     """
 
-    def __init__(self, n, h_list, A_eq_list=None, b_eq=None, A_ineq_list=None, b_ineq=None, is_convex=True):
+    def __init__(self, n, 
+                 h_list, 
+                 A_eq_list=None, b_eq=None, 
+                 A_ineq_list=None, b_ineq=None, 
+                 is_convex=True):
         """
         Initialize the separable optimization problem.
 
@@ -26,10 +30,18 @@ class SeparableOptProblem(ABC):
         ----------
         n : int
             Number of blocks in the separable problem
-        A_list : list of ndarray
-            List of matrices [A_1, A_2, ..., A_n] where A_i is the constraint matrix
-            for block i. Each A_i should be of shape (m, d_i) where m is the number
-            of constraints and d_i is the dimension of x_i.
+        h_list : list of callables
+            List of objective functions [h_1, h_2, ..., h_n]
+        A_eq_list : list of ndarray, optional
+            List of equality constraint matrices [A_eq_1, A_eq_2, ..., A_eq_n]
+        b_eq : ndarray, optional
+            Right-hand side of the equality constraints
+        A_ineq_list : list of ndarray, optional
+            List of inequality constraint matrices [A_ineq_1, A_ineq_2, ..., A_ineq_n]
+        b_ineq : ndarray, optional
+            Right-hand side of the inequality constraints
+        is_convex : bool, optional
+            Indicates if the problem is convex (default is True)
         """
         self.n = n
         self.h_list = h_list
@@ -112,12 +124,16 @@ class SeparableOptProblem(ABC):
         gamma : float
             Weight on the objective function h_i
         g : ndarray
-            Dual variable for the constraint
+            Dual variable for the equality constraints
+        v : ndarray
+            Dual variable for the inequality constraints
 
         Returns
         -------
         ndarray
             Minimizer x_i^* in X_i
+        float
+            Minimum value of the objective
         """
         pass
 
@@ -135,7 +151,9 @@ class SeparableOptProblem(ABC):
         Parameters
         ----------
         lbd : ndarray
-            Dual variable
+            Dual variable for equality constraints
+        mu : ndarray
+            Dual variable for inequality constraints
 
         Returns
         -------
@@ -150,7 +168,7 @@ class SeparableOptProblem(ABC):
 
     def compute_Ai_eq_dot_x(self, i, x_i):
         """
-        Compute A_i @ x_i.
+        Compute A_i_eq @ x_i.
 
         Parameters
         ----------
@@ -170,7 +188,7 @@ class SeparableOptProblem(ABC):
     
     def compute_Ai_ineq_dot_x(self, i, x_i):
         """
-        Compute A_i @ x_i.
+        Compute A_i_ineq @ x_i.
 
         Parameters
         ----------
@@ -240,35 +258,6 @@ class SeparableOptProblem(ABC):
                 result += Ai_xi
         return 1/self.n * result
 
-    #def compute_AiT_dot_g(self, i, g):
-        """
-        Compute A_i^T @ g.
-
-        Parameters
-        ----------
-        i : int
-            Block index
-        g : ndarray
-            Dual variable
-
-        Returns
-        -------
-        ndarray
-            A_i^T @ g
-        """
-     #   return self.A_list[i].T @ g
-
-    #def get_constraint_rhs(self):
-        """
-        Get the right-hand side b of the constraint 1/n * sum_{i=1}^n A_i x_i = b.
-
-        Returns
-        -------
-        ndarray
-            Right-hand side vector b
-        """
-    #    return self.b
-
     def get_feasible_point(self):
         """
         Return a feasible point for the problem (if available).
@@ -281,24 +270,6 @@ class SeparableOptProblem(ABC):
         """
         raise NotImplementedError("get_feasible_point must be implemented in subclass")
 
-    #def check_feasibility(self, x, tol=1e-6):
-        """
-        Check if x is feasible (satisfies the constraint within tolerance).
-
-        Parameters
-        ----------
-        x : ndarray or dict
-            Point to check
-        tol : float, optional
-            Tolerance for constraint satisfaction
-
-        Returns
-        -------
-        bool
-            True if feasible, False otherwise
-        """
-    #    Ax = self.compute_A_eq_dot_x(x)
-    #    return np.linalg.norm(Ax - self.b) <= tol
     
     def compute_infeasibility(self, x):
         """
@@ -364,11 +335,17 @@ class ConvexSeparableOptProblem(SeparableOptProblem):
         n : int
             Number of blocks in the separable problem
         h_list : list of callables
-            List of objective functions [h_1, ..., h_n]
-        A_list : list of ndarray
-            List of constraint matrices [A_1, ..., A_n]
-        b : ndarray
-            Right-hand side of the constraint
+            List of objective functions [h_1, h_2, ..., h_n]
+        A_eq_list : list of ndarray, optional
+            List of equality constraint matrices [A_eq_1, A_eq_2, ..., A_eq_n]
+        b_eq : ndarray, optional
+            Right-hand side of the equality constraints
+        A_ineq_list : list of ndarray, optional
+            List of inequality constraint matrices [A_ineq_1, A_ineq_2, ..., A_ineq_n]
+        b_ineq : ndarray, optional
+            Right-hand side of the inequality constraints
+        is_convex : bool, optional
+            Indicates if the problem is convex (default is True)
         """
         super().__init__(n=n, h_list=h_list, A_eq_list=A_eq_list, b_eq=b_eq, A_ineq_list=A_ineq_list, b_ineq=b_ineq, is_convex=True)
 
@@ -394,11 +371,17 @@ class NonConvexSeparableOptProblem(SeparableOptProblem):
         n : int
             Number of blocks in the separable problem
         h_list : list of callables
-            List of objective functions [h_1, ..., h_n]
-        A_list : list of ndarray
-            List of constraint matrices [A_1, ..., A_n]
-        b : ndarray
-            Right-hand side of the constraint
+            List of objective functions [h_1, h_2, ..., h_n]
+        A_eq_list : list of ndarray, optional
+            List of equality constraint matrices [A_eq_1, A_eq_2, ..., A_eq_n]
+        b_eq : ndarray, optional
+            Right-hand side of the equality constraints
+        A_ineq_list : list of ndarray, optional
+            List of inequality constraint matrices [A_ineq_1, A_ineq_2, ..., A_ineq_n]
+        b_ineq : ndarray, optional
+            Right-hand side of the inequality constraints
+        is_convex : bool, optional
+            Indicates if the problem is convex (default is True)
         """
         super().__init__(n=n, h_list=h_list, A_eq_list=A_eq_list, b_eq=b_eq, A_ineq_list=A_ineq_list, b_ineq=b_ineq, is_convex=False)
 
