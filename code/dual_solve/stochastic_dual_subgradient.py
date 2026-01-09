@@ -40,9 +40,9 @@ class StochasticDualSubgradient:
 
         #create matrix of primal candidates (this is only if we want to keep track of the primal solution, or to help initialize the block Frank Wolfe algorithm)
         X = np.zeros((self.problem.get_di(0), self.n_components)) #assuming here all x_i's have the same dimension
-        #for i in range(self.n_components):
+        for i in range(self.n_components):
             #initialize with a feasible primal point
-        #    X[:, i] = np.zeros()
+            X[:, i] = self.problem.oracle(i, 1, lbd, mu)[0]
         beta_z_dic = {}
         x_dic = {}
         weights_dic = {}
@@ -82,7 +82,7 @@ class StochasticDualSubgradient:
                 res = insert_column(beta_z_dic[ik], 
                                     np.concatenate((np.array([1/self.n_components * h_ik_sik]), 1/self.n_components * Aeq_ik_sik, 1/self.n_components * Aineq_ik_sik)),
                                     index=index_counters[ik]-1,
-                                    expand_size=int(0.1 * beta_z_dic[ik].shape[1]))
+                                    expand_size=max(1, int(0.1 * beta_z_dic[ik].shape[1])))
                 if res is not None:
                     beta_z_dic[ik] = res.copy()
 
@@ -90,7 +90,7 @@ class StochasticDualSubgradient:
                 res = insert_column(x_dic[ik], 
                                     x_ik,
                                     index=index_counters[ik]-1,
-                                    expand_size=int(0.1 * beta_z_dic[ik].shape[1]))
+                                    expand_size=max(1, int(0.1 * beta_z_dic[ik].shape[1])))
                 if res is not None:
                     x_dic[ik] = res.copy()
                 #beta_z_dic[ik].append(np.concatenate((np.array([1/self.n_components * h_ik_sik]), 1/self.n_components * Aeq_ik_sik, 1/self.n_components * Aineq_ik_sik)))

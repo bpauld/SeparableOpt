@@ -118,7 +118,8 @@ class DualSubgradient:
         
         history['total_nb_oracle_calls'] = nb_oracle_calls
 
-        X_sol = X.copy()
+        X_sol_bidual = X.copy()
+        X_sol_primal = X_sol_bidual.copy()
         if not self.problem.is_convex:
             #put y_dic and weights as arrays
             # and compute beta_z
@@ -137,14 +138,14 @@ class DualSubgradient:
                                                                 nb_indices_considered=2*(self.problem.b_eq.shape[0] + self.problem.b_ineq.shape[0]),
                                                                 T=self.n_components)
             
-            X_sol_carath = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
+            X_sol_primal = self.problem.build_final_solution_from_caratheodory_output(caratheodory_output)
 
-            cost_final = self.problem.h(X_sol_carath)
-            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_sol_carath))
+            cost_final = self.problem.h(X_sol_primal)
+            infeasibility_final = np.linalg.norm(self.problem.compute_infeasibility(X_sol_primal))
             print(f"After Caratheodory MNP: final cost = {cost_final}, infeasibility = {infeasibility_final}")
 
 
-        return history, X_sol_carath
+        return history, X_sol_primal, X_sol_bidual
 
 
 def solve_dual_gd(prob, eta="1/k", max_iter=1000, solve_contracted_problem=False, verbose=True):
