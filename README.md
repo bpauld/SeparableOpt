@@ -18,31 +18,25 @@ Benjamin Dubois-Taine, Laurent Pfeiffer, Nadia Oudjane, Adrien Seguret, Francis 
 
 ## Use the code
 
-If your problem is convex, you should define the problem by creating a child of the `ConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions. You can use the file `LP/lp_problem.py` as template.
+If your problem is convex, you should define the problem by creating a child of the `ConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions.
 
-If your problem is nonconvex, you should define a child of the `NonConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions. You can use the file `SC/sc_problem.py` as template.
+If your problem is nonconvex, you should define a child of the `NonConvexSeparableOptProblem` class defined in `separable_opt_problem.py` and implementing the required functions. You can use the file `PEVs/pev_problem.py` as template.
 
 You can then run the two-stage solver implemented in `two_stage_solver.py`
 
 ## Reproduce experiments
 
-To reproduce the experiments on the LP problems, run the following in the `LP` folder:
-
+To reproduce the experiment from the first plot on the charging of electric vehicles problem, run the following in `PEVs` folder:
 ```
 $ python script.py
 ```
 
-To reproduce the experiments on the charging of electric vehicles problem, run the following in `PEVs` folder:
+To reproduce the experiment from the second plot on the charging of electric vehicles problem, run the following in `PEVs` folder:
 ```
-$ python script.py
-```
-
-To reproduce the experiments on the supply chain optimization problem, run the following in `SC` folder:
-```
-$ python script.py
+$ python script_nonconvex.py
 ```
 
-You can use the jupyter notebooks to reproduce the plots.
+You can use the jupyter notebook to reproduce the plots.
 
 ## Citing our work
 
