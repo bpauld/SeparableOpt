@@ -43,6 +43,10 @@ You can use the jupyter notebook to reproduce the plots.
 To cite our work please use:
 
 ```
-@article{dubois2024frank,
+@article{dubois2026two,
+  title={Two-stage stochastic algorithm for solving large-scale (non)-convex separable optimization problems under affine constraints},
+  author={Dubois-Taine, Benjamin and Pfeiffer, Laurent and Oudjane, Nadia and Seguret, Adrien and Bach, Francis},
+  journal={arXiv preprint arXiv:2602.06637},
+  year={2026}
 }
 ```
