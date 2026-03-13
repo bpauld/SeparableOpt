@@ -14,7 +14,7 @@ where the functions $f_i$ and their domains need not be convex.
 
 The full theoretical background can be found in our paper:
 
-Benjamin Dubois-Taine, Laurent Pfeiffer, Nadia Oudjane, Adrien Seguret, Francis Bach. "". In: arXiv preprint.
+Benjamin Dubois-Taine, Laurent Pfeiffer, Nadia Oudjane, Adrien Seguret, Francis Bach. "Two-stage stochastic algorithm for solving large-scale (non)-convex separable optimization problems under affine constraints". In: arXiv preprint, [arXiv link](https://arxiv.org/abs/2602.06637).
 
 ## Use the code
 
